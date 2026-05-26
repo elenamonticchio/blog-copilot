@@ -1,0 +1,12 @@
+langgraph
+langchain
+langchain-openai
+langchain-community
+langchain-chroma
+langsmith
+python-dotenv
+chromadb
+networkx
+tavily-python
+tiktoken
+requests
