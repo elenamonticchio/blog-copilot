@@ -17,7 +17,7 @@ EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
 # --- percorsi dei dati ---
 DATA_DIR = ROOT / "data"
 VECTORSTORE_DIR = DATA_DIR / "vectorstore"
-KG_PATH = DATA_DIR / "kg.gpickle"
+KG_PATH = DATA_DIR / "knowledge_graph.json"   # allineato al kg_manager (JSON)
 DATA_DIR.mkdir(exist_ok=True)
 
 
@@ -28,5 +28,6 @@ def get_llm(temperature: float = 0.3):
 
 
 def get_embeddings():
+    """Restituisce il modello di embedding configurato."""
     from langchain_openai import OpenAIEmbeddings
     return OpenAIEmbeddings(model=EMBED_MODEL)

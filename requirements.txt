@@ -10,3 +10,4 @@ networkx
 tavily-python
 tiktoken
 requests
+openai
