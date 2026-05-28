@@ -45,4 +45,8 @@ if __name__ == "__main__":
     print("Post in piano  :", len(final["editorial_plan"]))
     print("Topic corrente :", final["current_topic"])
     print("Bozza          :", final["current_draft"])
-    print("Passi reasoning:", len(final["reasoning_trace"]))
+    for i, step in enumerate(final["reasoning_trace"], 1):
+        print(f"\n--- Step {i} ---")
+        print("Thought     :", step.get("thought"))
+        print("Action      :", step.get("action"))
+        print("Observation :", step.get("observation"))

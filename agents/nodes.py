@@ -1,10 +1,10 @@
 """
-Nodi del grafo (architettura modulare — separati dal cablaggio in graph/builder.py).
+Nodi del grafo (architettura modulare - separati dal cablaggio in graph/builder.py).
 
 Stato attuale:
   - suggest_topics  -> REALE: interroga il KG (gap + post recenti) e genera idee con l'LLM
   - planner         -> SEMI-REALE: trasforma i suggerimenti in un piano editoriale
-  - research        -> STUB (Fase 4/6: K-RAG con tool e ReAct)
+  - research        -> REALE: K-RAG (espansione query col KG + retrieval + grading)
   - verify_and_select -> STUB (Fase 6)
   - draft           -> STUB (Fase 6)
   - human_review    -> STUB (Fase 7: interrupt reale)
@@ -17,6 +17,7 @@ from graph.state import AgentState, PlannedPost, MAX_ITERATIONS
 from config.settings import get_llm
 from config.domain import DOMAIN_TOPICS
 from kg.kg_manager import KnowledgeGraphManager
+from rag.retriever import krag_retrieve, format_citations
 
 
 def _extract_json_array(text: str):
@@ -42,8 +43,6 @@ def suggest_topics(state: AgentState) -> dict:
 
     gaps = kg.get_coverage_gaps(DOMAIN_TOPICS)
     recent_titles = [p.get("title") for p in kg.get_recent_posts(5)]
-
-    # Se il blog ha già coperto tutto il dominio, riparti dall'intero universo.
     candidate_topics = gaps if gaps else DOMAIN_TOPICS
 
     prompt = (
@@ -52,8 +51,8 @@ def suggest_topics(state: AgentState) -> dict:
         f"Post pubblicati di recente, da NON ripetere: {recent_titles}\n\n"
         "Proponi 3 idee di post concrete e interessanti che colmino i gap.\n"
         "Per ciascuna indica: topic, post_type (uno tra: review, how-to, news, events), "
-        "reason (perché vale la pena scriverne ora).\n"
-        "Rispondi SOLO con un array JSON, senza testo extra né backtick. Esempio:\n"
+        "reason (perche vale la pena scriverne ora).\n"
+        "Rispondi SOLO con un array JSON, senza testo extra ne backtick. Esempio:\n"
         '[{"topic": "...", "post_type": "review", "reason": "..."}]'
     )
 
@@ -62,13 +61,12 @@ def suggest_topics(state: AgentState) -> dict:
     try:
         suggestions = _extract_json_array(response.content)
     except (ValueError, json.JSONDecodeError):
-        # Fallback robusto: usa i primi gap come suggerimenti grezzi
         suggestions = [
             {"topic": t, "post_type": "news", "reason": "gap di copertura nel KG"}
             for t in candidate_topics[:3]
         ]
 
-    print(f"   trovati {len(gaps)} gap → {len(suggestions)} topic proposti")
+    print(f"   trovati {len(gaps)} gap -> {len(suggestions)} topic proposti")
     return {
         "suggested_topics": suggestions,
         "messages": [response],
@@ -87,8 +85,7 @@ def suggest_topics(state: AgentState) -> dict:
 def planner(state: AgentState) -> dict:
     """
     Trasforma i topic suggeriti in un piano editoriale ordinato.
-    Per ora l'ordine segue le proposte; l'ordinamento/giustificazione via LLM
-    (requisito Planning completo) arriverà nella Fase 8.
+    L'ordinamento/giustificazione via LLM (Planning completo) arriva in Fase 8.
     """
     print("→ [planner] costruisco il piano editoriale dai suggerimenti")
     suggestions = state.get("suggested_topics", [])
@@ -103,7 +100,7 @@ def planner(state: AgentState) -> dict:
         for i, s in enumerate(suggestions)
     ]
 
-    if not plan:  # fallback se suggest_topics non ha prodotto nulla
+    if not plan:
         plan = [{
             "topic": "Topic di esempio",
             "post_type": "review",
@@ -125,26 +122,48 @@ def planner(state: AgentState) -> dict:
 
 
 # ====================================================================== #
-# 3-7. NODI ANCORA STUB                                                  #
+# 3. RESEARCH  (REALE - K-RAG)                                           #
 # ====================================================================== #
 
 def research(state: AgentState) -> dict:
-    """STUB — Fase 4/6: K-RAG (Search + RAG espansi col KG) in stile ReAct."""
-    print(f"→ [research] (stub) K-RAG sul topic: {state['current_topic']}")
+    """
+    K-RAG: combina conoscenza STRUTTURATA (KG) e NON STRUTTURATA (documenti).
+      - kg.get_topic_context: coerenza con i post passati
+      - krag_retrieve: query espansa col KG -> retrieval -> grading self-RAG
+    Popola retrieved_docs e citations per il nodo di drafting.
+    """
+    topic = state["current_topic"]
+    print(f"→ [research] K-RAG sul topic: {topic}")
+
+    kg = KnowledgeGraphManager()
+    kg_context = kg.get_topic_context(topic)              # conoscenza strutturata
+    docs = krag_retrieve(topic, k=4, grade=True)          # documenti non strutturati
+    citations = format_citations(docs)
+
+    print(f"   {len(docs)} documenti rilevanti, {len(citations)} fonti")
     return {
-        "kg_context": "stub: contesto dal Knowledge Graph",
-        "retrieved_docs": [],
-        "tool_outputs": [{"tool": "search", "output": "stub", "source": "stub-url"}],
+        "kg_context": kg_context,
+        "retrieved_docs": docs,
+        "citations": citations,
+        "tool_outputs": [{
+            "tool": "krag_retrieve",
+            "output": f"{len(docs)} documenti recuperati",
+            "source": "vectorstore (seed_corpus)",
+        }],
         "reasoning_trace": [{
-            "thought": "Espando la query col KG, poi recupero documenti",
-            "action": "search + rag_retrieve",
-            "observation": "stub: documenti recuperati",
+            "thought": "Espando la query col KG e recupero documenti pertinenti",
+            "action": "kg.expand_query_for_rag + rag_retrieve + grade_documents",
+            "observation": f"{len(docs)} documenti rilevanti recuperati",
         }],
     }
 
 
+# ====================================================================== #
+# 4-7. NODI ANCORA STUB                                                  #
+# ====================================================================== #
+
 def verify_and_select(state: AgentState) -> dict:
-    """STUB — Fase 6: verifica accuratezza + selezione per qualità/interessantezza."""
+    """STUB - Fase 6: verifica accuratezza + selezione per qualita/interessantezza."""
     print("→ [verify_and_select] (stub) verifico i fatti e filtro le fonti")
     return {
         "reasoning_trace": [{
@@ -156,11 +175,10 @@ def verify_and_select(state: AgentState) -> dict:
 
 
 def draft(state: AgentState) -> dict:
-    """STUB — Fase 6: bozza ancorata ai documenti, con citazioni e key claims."""
+    """STUB - Fase 6: bozza ancorata ai documenti, con citazioni e key claims."""
     print("→ [draft] (stub) genero la bozza del post")
     return {
         "current_draft": f"[BOZZA STUB] Post '{state['post_type']}' su: {state['current_topic']}",
-        "citations": [{"title": "stub", "url": "stub-url", "source": "stub"}],
         "key_claims": ["stub: affermazione chiave estratta dal testo"],
         "reasoning_trace": [{
             "thought": "Scrivo in coerenza col KG e cito le fonti",
@@ -171,7 +189,7 @@ def draft(state: AgentState) -> dict:
 
 
 def human_review(state: AgentState) -> dict:
-    """STUB — Fase 7: qui ci sarà l'interrupt reale (approva/modifica/rigetta)."""
+    """STUB - Fase 7: qui ci sara l'interrupt reale (approva/modifica/rigetta)."""
     print("→ [human_review] (stub) auto-approvo")
     return {
         "user_status": "approved",
@@ -181,7 +199,7 @@ def human_review(state: AgentState) -> dict:
 
 
 def update_kg(state: AgentState) -> dict:
-    """STUB — Fase 6/7: scriverà nel KG (add_approved_post) SOLO dopo approvazione."""
+    """STUB - Fase 6/7: scrivera nel KG (add_approved_post) SOLO dopo approvazione."""
     print("→ [update_kg] (stub) aggiorno il KG")
     return {
         "reasoning_trace": [{
