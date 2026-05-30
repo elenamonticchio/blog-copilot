@@ -14,7 +14,10 @@ from config.settings import get_llm
 
 class InterestScore(BaseModel):
     """Punteggio di interessantezza/qualita' di una risorsa per il blog."""
-    score: float = Field(description="Punteggio da 0 (scarso) a 10 (eccellente)")
+    score: float = Field(
+        ge=0, le=10,
+        description="Punteggio da 0 (scarso) a 10 (eccellente)",
+    )
     reason: str = Field(description="Motivazione sintetica, max una frase")
 
 

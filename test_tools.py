@@ -16,7 +16,7 @@ from tools import (
     tmdb_fact_check,
     score_interestingness,
     tvmaze_show_info,
-    utelly_where_to_watch,
+    find_local_events
 )
 
 
@@ -34,7 +34,7 @@ def header(title: str):
 # ------------------------------------------------------------------ #
 header("TOOL 1 - web_search (Tavily)")
 out = web_search.invoke({"query": "Dune Parte Due data uscita Italia"})
-print(out[:300], "...\n")
+print(out[:4000], "...\n")
 check("ritorna una stringa non vuota", isinstance(out, str) and len(out) > 50)
 check("contiene almeno un URL", "http" in out or "Errore" in out)
 
@@ -87,10 +87,10 @@ check("ritorna dati o errore noto", isinstance(out, str) and len(out) > 30)
 check("contiene titolo o stato della serie", "Titolo:" in out or "Stato:" in out or "Errore" in out or "Nessuna" in out)
 
 # ------------------------------------------------------------------ #
-header("TOOL 9 - utelly_where_to_watch (CUSTOM) - dove vedere")
-out = utelly_where_to_watch.invoke({"title": "Oppenheimer", "country": "it"})
-print(out[:400], "...\n")
-check("ritorna risultati o errore noto", isinstance(out, str) and len(out) > 10)
 
-print("\nFine. Se vedi tutti [OK], i 9 tool funzionano in isolamento.")
-print("Nella Fase 6 li bindiamo all'LLM via ALL_TOOLS per la selezione dinamica.\n")
+header("TOOL 9 - find_local_events (CUSTOM)")
+out = find_local_events.invoke({"location": "Venezia", "kind": "festival cinema"})
+print(out[:4000], "...\n")
+check("ritorna una stringa non vuota", isinstance(out, str) and len(out) > 50)
+check("contiene un URL o un messaggio di assenza eventi",
+      "http" in out or "Nessun evento" in out)

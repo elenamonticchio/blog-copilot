@@ -1,11 +1,12 @@
 """
 Registro centrale dei tool del progetto.
 
-Requisito PDF: 3 tool core + almeno 2 tool custom.
-Stato attuale: 3 core + 4 custom (siamo abbondanti sui custom).
+Requisito PDF:
+  - 3 categorie core: Search, RAG retrieval, Knowledge Graph
+  - 2 tool custom progettati dal team (qui ne abbiamo 4)
 
-ALL_TOOLS viene passata a .bind_tools(...) nel nodo ReAct (Fase 6)
-per abilitare la selezione DINAMICA dei tool.
+ALL_TOOLS sara' passata a .bind_tools(...) nel nodo ReAct di Fase 6,
+abilitando la selezione DINAMICA dei tool richiesta dal PDF.
 """
 from tools.search_tool import web_search
 from tools.rag_tool import rag_search
@@ -13,10 +14,11 @@ from tools.kg_tool import kg_get_topic_context, kg_get_recent_posts, kg_find_gap
 from tools.fact_check_tool import tmdb_fact_check
 from tools.scorer_tool import score_interestingness
 from tools.tvmaze_tool import tvmaze_show_info
-from tools.utelly_tool import utelly_where_to_watch
+from tools.events_tool import find_local_events
 
-# L'agente vede SOLO i tool di lettura del KG;
-# la scrittura (kg.add_approved_post) resta gated nel nodo update_kg.
+# Tutti i tool esposti al ReAct agent.
+# Nota: l'update del KG NON e' esposto come tool: viene chiamato direttamente
+# dal nodo update_kg DOPO l'approvazione umana (vincolo PDF).
 ALL_TOOLS = [
     # --- CORE (3 categorie) ---
     web_search,                # search esterno (Tavily)
@@ -28,7 +30,7 @@ ALL_TOOLS = [
     tmdb_fact_check,           # verifica metadati film/serie su TMDb
     score_interestingness,     # score di qualita'/interessantezza (LLM)
     tvmaze_show_info,          # calendario e dettagli serie TV
-    utelly_where_to_watch,     # dove vedere un film/serie
+    find_local_events,         # eventi cinema/TV nell'area geografica
 ]
 
 __all__ = [
@@ -41,5 +43,5 @@ __all__ = [
     "tmdb_fact_check",
     "score_interestingness",
     "tvmaze_show_info",
-    "utelly_where_to_watch",
+    "find_local_events",
 ]
